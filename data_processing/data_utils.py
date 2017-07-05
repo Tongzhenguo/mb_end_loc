@@ -1,28 +1,10 @@
 # coding=utf-8
+import os
+import cPickle as pkl
 import geohash as geo
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
-
-def make_label():
-    tr = pd.read_csv('../data/train.csv')
-    te = pd.read_csv('../data/test.csv')
-
-    loc_raw = set(tr['geohashed_start_loc'].values).union(set(te['geohashed_start_loc'].values).union( set(tr['geohashed_end_loc'].values) ))
-    print len(loc_raw) #110527
-
-    print len( set([loc[:6] for loc in loc_raw ] ) ) #8571
-
-    loc_array = np.array( list(set([loc[:6] for loc in loc_raw])) ).reshape([-1,1])
-    le = LabelEncoder()
-    le = le.fit( loc_array )
-    tr['geohashed_start_loc_enc'] = le.transform( tr['geohashed_start_loc'].apply(lambda x:x[:6]).values )
-    tr['geohashed_end_loc_enc'] = le.transform(tr['geohashed_end_loc'].apply(lambda x:x[:6]).values)
-
-    te['geohashed_start_loc_enc'] = le.transform(te['geohashed_start_loc'].apply(lambda x:x[:6]).values)
-    print tr.head()
-    return tr,te
-
 
 # 由geohash获取经纬度
 def get_lat(geohash):
@@ -31,6 +13,49 @@ def get_lat(geohash):
 def get_lon(geohash):
     x,y,x_s,y_s = geo.decode_exactly(geohash)
     return y
+
+# tr = pd.read_csv('../data/train.csv')
+# gen = batch_generator( tr[['bikeid','userid','geohashed_start_loc']].values,tr[['geohashed_end_loc']].values )
+# print gen.next()
+# def make_label():
+#     tr = pd.read_csv('../data/train.csv')
+#     te = pd.read_csv('../data/test.csv')
+#
+#     loc_raw = set(tr['geohashed_start_loc'].values).union(set(te['geohashed_start_loc'].values).union( set(tr['geohashed_end_loc'].values) ))
+#     print len(loc_raw) #110527
+#
+#     print len( set([loc[:6] for loc in loc_raw ] ) ) #8571
+#
+#     loc_array = np.array( list(set([loc[:6] for loc in loc_raw])) ).reshape([-1,1])
+#     le = LabelEncoder()
+#     le = le.fit( loc_array )
+#     tr['geohashed_start_loc_enc'] = le.transform( tr['geohashed_start_loc'].apply(lambda x:x[:6]).values )
+#     tr['geohashed_end_loc_enc'] = le.transform(tr['geohashed_end_loc'].apply(lambda x:x[:6]).values)
+#
+#     te['geohashed_start_loc_enc'] = le.transform(te['geohashed_start_loc'].apply(lambda x:x[:6]).values)
+#     print tr.head()
+#     return tr,te
+
+def get_starttime_metadata( df ):
+    df['datetime'] = pd.to_datetime( df['starttime'] )
+    df['yearweek'] = df['datetime'].apply(lambda dt: dt.isocalendar()[1] - 1)
+    df['weekday'] = df['datetime'].apply( lambda dt:dt.weekday())
+    df['day'] = df['datetime'].apply( lambda dt:dt.day )
+    df['hour'] = df['datetime'].apply( lambda dt:dt.hour )
+    def get_time_range( hh ):
+        time_range = 0
+        if( hh in range(6,12,1) ):
+            time_range = 1
+        if( hh in range(12,18,1) ):
+            time_range = 2
+        if( hh in range(18,24,1) ):
+            time_range = 3
+        return time_range
+
+    df['time_range'] = df['hour'].apply( get_time_range  )
+    df['quarter'] = df['datetime'].apply( lambda dt:dt.hour * 4 + dt.minute / 15)
+    feat = ['orderid','yearweek','weekday','day','time_range','hour','quarter']
+    return df[ feat ]
 
 # 根据经纬度计算距离
 def haversine_np(lon1, lat1, lon2, lat2):
@@ -41,6 +66,26 @@ def haversine_np(lon1, lat1, lon2, lat2):
     c = 2 * np.arcsin(np.sqrt(a))
     km = 6367 * c
     return km
+
+def make_train_test( ):
+    path_tr = '../data/train_trans.pkl'
+    path_te = '../data/test_trans.pkl'
+    feat = ['orderid','userid','bikeid','biketype','geohashed_start_loc']
+    dt_feat = ['orderid','yearweek', 'weekday', 'day', 'time_range', 'hour', 'quarter']
+    tr = pd.read_csv('../data/train.csv')
+    te = pd.read_csv('../data/test.csv')
+
+    time_metedata = get_starttime_metadata( tr )
+    tr = pd.merge(tr[feat], time_metedata[dt_feat], on='orderid')
+
+    time_metedata = get_starttime_metadata( te )
+    te = pd.merge( te[feat],time_metedata[dt_feat],on='orderid' )
+    with open( path_tr,'wb' ) as f:
+        pkl.dump( tr,f,protocol=pkl.HIGHEST_PROTOCOL )
+    with open(path_te, 'wb') as f:
+        pkl.dump(te, f, protocol=pkl.HIGHEST_PROTOCOL)
+# make_train_test()
+
 
 
 def do_bad():
@@ -110,7 +155,7 @@ def loc_loc(  ):
 
     res['f5'] = res['loc'].apply( lambda x:x[:5] )
     res = res[ res.f5.str.startswith('wx') ]
-    print 'test dateset all loc num:', len(res)
+    print( 'test dateset all loc num:', len(res) )
 
     res['rn'] = res['times'].groupby( res['f5'] ).rank(axis=0,ascending=False,method='dense')
     hot3 = res[res.rn<=3.0].drop_duplicates(['f5','rn'])
@@ -126,7 +171,7 @@ def loc_loc(  ):
     res = pd.merge(res, res2, on='f5',how='left').fillna('-1')[['loc','hot1','hot2','f5']]
     res = pd.merge(res, res3, on='f5',how='left').fillna('-1')[['loc','hot1','hot2','hot3']]
 
-    print len(res)
+    print( len(res) )
     res.to_csv('../data/loc_hot3_loc.csv',index=False)
     return res
 # print loc_loc().head(40)
@@ -141,7 +186,6 @@ def split_train_test( split_day = '2017-05-21' ):
 # print len(tr) #1830100
 # print len(te) #1383996
 #1367872
-import numpy as np
 
 def apk(actual, predicted, k=3):
     """

@@ -7,6 +7,7 @@ print(len(tr))  # 3214096
 print(len(tr['userid'].unique()))  # 349693
 print(len(tr['bikeid'].unique()))  # 485465
 print(tr['biketype'].unique())  # [1,2]
+print('time uniq',tr['starttime'].unique().shape[0] )
 
 df = pd.to_datetime( tr['starttime'] )
 print(df.min())  # 2017-05-10 00:00:09
