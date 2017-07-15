@@ -10,8 +10,8 @@ from itertools import cycle
 from data_processing.data_utils import get_lat,get_lon
 if __name__ == '__main__':
     print "Generating location point list"
-    tr = pd.read_csv('../data/train.csv')
-    te = pd.read_csv('../data/test.csv')
+    tr = pd.read_pickle('../data/tr_feat.pkl')
+    te = pd.read_pickle('../data/te_feat.pkl')
 
     loc_raw = set(tr['geohashed_start_loc'].values).union(
         set(te['geohashed_start_loc'].values).union(set(tr['geohashed_end_loc'].values)))
@@ -22,10 +22,6 @@ if __name__ == '__main__':
         dests.append([lat, lon])
     pts = numpy.array(dests)
     print pts[:5]
-
-    # with open(os.path.join('../data/', "arrivals.pkl"), "w") as f:
-    #     cPickle.dump(pts, f, protocol=cPickle.HIGHEST_PROTOCOL)
-
     print "Doing clustering"
     # bw = estimate_bandwidth(pts, quantile=.005, n_samples=1000,random_state=20170630)
     # print bw
@@ -33,10 +29,12 @@ if __name__ == '__main__':
 
     ms = MeanShift( bandwidth=bw,bin_seeding=True,min_bin_freq=3,n_jobs=4)
     ms.fit(pts)
+    with open(os.path.join('../data/', "mean-shift-model.pkl"), "w") as f:
+        cPickle.dump(ms, f, protocol=cPickle.HIGHEST_PROTOCOL)
     labels = ms.labels_
     cluster_centers = ms.cluster_centers_
     n_clusters_ = len(cluster_centers)
-    print "Clusters shape: ", cluster_centers.shape #(4094L, 2L)
+    print "Clusters shape: ", cluster_centers.shape #(2857L, 2L)
 
     # ###############################################################################
     # # Plot result
@@ -52,9 +50,6 @@ if __name__ == '__main__':
     # plt.title('Estimated number of clusters: %d' % n_clusters_)
     # plt.show()
 
-    # with open(os.path.join('../data/', "mean-shift-model.pkl"), "w") as f:
-    #     cPickle.dump(ms, f, protocol=cPickle.HIGHEST_PROTOCOL)
-
 
     end_loc = tr[['geohashed_end_loc']]
     end_loc['lat'] = end_loc['geohashed_end_loc'].apply(get_lat)
@@ -62,7 +57,7 @@ if __name__ == '__main__':
 
     end_loc['label'] = ms.predict(end_loc[['lat', 'lon']].values)
     print(end_loc[['label']].head())
-    # pd.to_pickle( end_loc[['label']],'../data/label.pkl' )
+    pd.to_pickle( end_loc[['label']],'../data/label.pkl' )
 
 
     ##这里计算一个DF,一列所属的label,另外3列是出现次数最多的终点候选，没有终点候选测试集的起点来补齐，默认是0
