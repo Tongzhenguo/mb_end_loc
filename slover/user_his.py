@@ -84,6 +84,7 @@ def make_eval(val):
     user_hour_prob = get_user_hour_prob( val,1.0 )
     user_start_prob = get_user_start_prob( val,1.0 )
     user_weekday_prob = get_user_weekday_prob(val,1.0)
+    user_quarter_prob = get_user_quarter_prob(val, 1.0)
 
     # res = pd.DataFrame()
     # 这里假设时段和起点相互独立，则有全概率公式
@@ -92,18 +93,18 @@ def make_eval(val):
     df2 = pd.merge(val[['orderid', 'userid', 'geohashed_start_loc']], user_start_prob, on=('userid', 'geohashed_start_loc'))[['orderid', 'geohashed_end_loc', 'prob']]
     df3 = pd.merge(val[['orderid', 'userid', 'weekday']], user_weekday_prob, on=('userid', 'weekday'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
-    df4 = pd.merge(val[['orderid', 'userid', 'quarter']], get_user_quarter_prob, on=('userid', 'quarter'))[
+    df4 = pd.merge(val[['orderid', 'userid', 'quarter']], user_quarter_prob, on=('userid', 'quarter'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
 
-    res = pd.merge( df1,df2,on=('orderid','geohashed_end_loc'),how='right' ).fillna(0.001)
+    res = pd.merge( df1,df2,on=('orderid','geohashed_end_loc'),how='outer' ).fillna(0.001)
     res['prob'] = res['prob_x']*res['prob_y']
     del res['prob_x']
     del res['prob_y']
-    res = pd.merge( res,df3,on=('orderid','geohashed_end_loc'),how='left' ).fillna(0.001)
+    res = pd.merge( res,df3,on=('orderid','geohashed_end_loc'),how='outer' ).fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
-    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'), how='left').fillna(0.001)
+    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
@@ -127,16 +128,30 @@ def make_sub():
     te = pd.read_csv('../data/test.csv')
     te = trans_time( te )
 
-    user_hour_prob = get_user_hour_prob( df2,a=0.4 )
-    user_start_prob = get_user_start_prob( df2,a=0.6 )
-
+    user_hour_prob = get_user_hour_prob( df2,a=1.0 )
+    user_start_prob = get_user_start_prob( df2,a=1.0 )
+    user_weekday_prob = get_user_weekday_prob(df2, 1.0)
+    user_quarter_prob = get_user_quarter_prob(df2, 1.0)
 
     # 这里假设时段和起点相互独立，则有全概率公式
     df1 = pd.merge(te[['orderid', 'userid', 'time_range']], user_hour_prob, on=('userid', 'time_range'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
     df2 = pd.merge(te[['orderid', 'userid', 'geohashed_start_loc']], user_start_prob, on=('userid', 'geohashed_start_loc'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
-    res = pd.merge(df1, df2, on=('orderid', 'geohashed_end_loc'),how='right').fillna(1)
+    df3 = pd.merge(te[['orderid', 'userid', 'weekday']], user_weekday_prob, on=('userid', 'weekday'))[
+        ['orderid', 'geohashed_end_loc', 'prob']]
+    df4 = pd.merge(te[['orderid', 'userid', 'quarter']], user_quarter_prob, on=('userid', 'quarter'))[
+        ['orderid', 'geohashed_end_loc', 'prob']]
+
+    res = pd.merge(df1, df2, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
+    res['prob'] = res['prob_x'] * res['prob_y']
+    del res['prob_x']
+    del res['prob_y']
+    res = pd.merge(res, df3, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
+    res['prob'] = res['prob_x'] * res['prob_y']
+    del res['prob_x']
+    del res['prob_y']
+    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
@@ -149,8 +164,8 @@ def make_sub():
     n2.columns = ['orderid', 'pred2', 'prob2']
     n3 = groupby.nth(2)
     n3.columns = ['orderid', 'pred3', 'prob3']
-    res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('-1')
-    res = pd.merge(res, n3, on=('orderid'), how='left').fillna('-1')
+    res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('wx4f9mu')
+    res = pd.merge(res, n3, on=('orderid'), how='left').fillna('wx4e5sw')
     res = res[['orderid', 'pred1', 'pred2', 'pred3']]
     print(len(res)) #319980
 
@@ -161,15 +176,15 @@ def make_sub():
     r = pd.merge(r, a, on='orderid')
     res = res.append(r[['orderid', 'pred1', 'pred2', 'pred3']]).drop_duplicates('orderid')
     res.to_csv('../res/res_user.csv', header=None, index=None) #0.2407
-# make_sub()
+make_sub()
 
-if __name__ == "__main__":
-    d = pd.read_csv('data/data.csv')
-    c = make_eval(d)
-    b = pd.merge( d,c,on='orderid' )[['orderid','userid','geohashed_end_loc','pred1','pred2','pred3']]
-    bad_case = b[(b.geohashed_end_loc != b.pred1) & (b.geohashed_end_loc != b.pred2) & (b.geohashed_end_loc != b.pred3)]
-    dd = pd.merge(bad_case, d, on='orderid')
-    print b
+# if __name__ == "__main__":
+#     d = pd.read_csv('data/data.csv')
+#     c = make_eval(d)
+#     b = pd.merge( d,c,on='orderid' )[['orderid','userid','geohashed_end_loc','pred1','pred2','pred3']]
+#     bad_case = b[(b.geohashed_end_loc != b.pred1) & (b.geohashed_end_loc != b.pred2) & (b.geohashed_end_loc != b.pred3)]
+#     dd = pd.merge(bad_case, d, on='orderid')
+#     print b
 
 
 
