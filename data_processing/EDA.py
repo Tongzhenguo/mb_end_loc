@@ -37,5 +37,28 @@ te = pd.read_csv('../data/test.csv')
 # '''
 
 #没有在训练集中出现的用户，地点
-print('new users cnt :',len( set(te['userid'].unique()) - set(tr['userid'].unique()) )) #715893
-print('new loc cnt :',len( set(te['geohashed_start_loc'].unique()) - set(tr['geohashed_start_loc'].unique()) )) #10117
+# print('new users cnt :',len( set(te['userid'].unique()) - set(tr['userid'].unique()) )) #715893
+# print('new loc cnt :',len( set(te['geohashed_start_loc'].unique()) - set(tr['geohashed_start_loc'].unique()) )) #10117
+
+def loc_desc(  ):
+    global tr
+    #x = geohashed_end_loc | geohashed_start_loc 满足多项分布
+    a = tr[['geohashed_start_loc','orderid']].groupby( 'geohashed_start_loc',as_index=False ).count()
+    b = tr[['geohashed_start_loc','geohashed_end_loc','orderid']].groupby( ['geohashed_start_loc','geohashed_end_loc'],as_index=False ).count()
+    c = pd.merge( a,b,on='geohashed_start_loc' )
+    c['prob'] = 1.0 * c['orderid_y'] / c['orderid_x']
+    c = c[['geohashed_start_loc','geohashed_end_loc','prob']]
+    c.to_csv('../data/start_end_desc.csv')
+
+def time_desc():
+    df = tr[['weekday', 'hour', 'quarter', 'geohashed_end_loc', 'orderid']].groupby(
+        ['weekday', 'hour', 'quarter', 'geohashed_end_loc'], as_index=False).count()
+    a = df.groupby(['weekday', 'hour', 'quarter'], as_index=False).sum()[['weekday', 'hour', 'quarter', 'orderid']]
+    b = pd.merge(df, a, on=('weekday', 'hour', 'quarter'))
+    b['prob'] = 1.0 * b['orderid_x'] / b['orderid_y']
+    b = b[['weekday', 'hour', 'quarter','prob']]
+    b.to_csv('../data/time_end_desc.csv')
+
+
+if __name__ == "__main__":
+    pass

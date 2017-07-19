@@ -103,7 +103,7 @@ def make_train_test(  ):
     tr['datetime'] = pd.to_datetime(tr['starttime'])
     tr['weekday'] = tr['datetime'].apply(lambda dt: dt.weekday())
     tr['hour'] = tr['datetime'].apply(lambda dt: dt.hour)
-    tr['quarter'] = tr['datetime'].apply(lambda dt: dt.hour * 4 + dt.minute / 15)
+    tr['quarter'] = tr['datetime'].apply(lambda dt: int( dt.hour * 4 + dt.minute / 15)+1 )
     del tr['datetime']
     pd.to_pickle(tr, '../data/tr_feat.pkl')
     print('trainset cnt :{0}'.format(len(tr)))
@@ -111,7 +111,7 @@ def make_train_test(  ):
     te['datetime'] = pd.to_datetime(te['starttime'])
     te['weekday'] = te['datetime'].apply(lambda dt: dt.weekday())
     te['hour'] = te['datetime'].apply(lambda dt: dt.hour)
-    te['quarter'] = te['datetime'].apply(lambda dt: dt.hour * 4 + dt.minute / 15)
+    te['quarter'] = te['datetime'].apply(lambda dt: int( dt.hour * 4 + dt.minute / 15)+1 )
     del te['datetime']
 
     # handle new user of testset
@@ -133,5 +133,14 @@ def make_train_test(  ):
 
     pd.to_pickle(te, '../data/te_feat.pkl')
 
+def make_label(  ):
+    tr = pd.read_pickle('../data/tr_feat.pkl')
+    tr['geohashed_end_loc'] = tr['geohashed_end_loc'].apply(lambda s: s[-2:])
+    le = LabelEncoder()
+    le.fit( tr['geohashed_end_loc'] )
+    tr['geohashed_end_loc'] = le.transform( tr['geohashed_end_loc'] )
+    pd.to_pickle(tr[['geohashed_end_loc']],'../data/label.pkl')
+
 if __name__ == '__main__':
+    make_label()
     pass
