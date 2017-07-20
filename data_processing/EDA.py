@@ -2,7 +2,7 @@
 import math
 import numpy as np
 import pandas as pd
-from scipy.stats import vonmises
+from scipy.stats import vonmises_gen
 import scipy.special as sc
 import matplotlib.pyplot as plt
 tr = pd.read_csv('../data/train.csv')
@@ -105,13 +105,14 @@ def cal_sigma( xs,u ):
     def G( xs,u ):
         return np.sum( (-abs(abs( xs - u ) - 12)+12) ** 2 )
     return float(1) / len(xs) * G( xs,u )
+vonmises_hour = vonmises_gen(a=0, b=24, name='vonmises_hour')
 def get_hour_prob( hours,u,sigma ):
-    # print( "".format(hours=hours) )
-    from vonmiseskde import VonMisesKDE
-    kappa = 25
-    kde = VonMisesKDE(samples, weights=weights, kappa=kappa)
-    print( "均值={u},sigma={sigma}".format(u=u,sigma=sigma) )
-    return vonmises.fit(hours,1.0/sigma , loc=u, scale=math.sqrt(sigma) )
+    # y = [ (h-12)/12.0*math.pi for h in hours ]
+    # u =(u-12) / 12.0*math.pi
+    # sigma = sigma / 12.0 *math.pi
+    # print( y )
+    # print( "均值={u},sigma={sigma}".format(u=u,sigma=sigma) )
+    return vonmises_hour.pdf(hours,1.0/sigma , loc=u, scale=math.sqrt(sigma) )
 print get_hour_prob([9,],10.5,2.0)
 print get_hour_prob([9,],19.3,0.96)
 print get_hour_prob([9,],19.5,0.25)
