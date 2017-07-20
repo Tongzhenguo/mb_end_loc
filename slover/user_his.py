@@ -4,14 +4,17 @@ import pandas as pd
 # dig time metadata
 def trans_time( tr ):
     tr['datetime'] = pd.to_datetime(tr['starttime'])
-    tr['weekday'] = tr['datetime'].apply(lambda dt: dt.weekday())
+    tr['weekday'] = tr['datetime'].apply(lambda dt: 1 if dt.weekday() <5 else 2) #Monday == 0 ... Sunday == 6
     tr['hour'] = tr['datetime'].apply(lambda dt: dt.hour)
     def time_range( hh ):
         if hh in (6,7,8,9):
             return 8
         if hh in (17,18,19,20,21,22):
             return 17
-        return hh
+        if hh <6 or hh>22:
+            return 7
+        if hh>9 and hh<17:
+            return 10
     tr['time_range'] = tr['hour'].apply( time_range )
     tr['quarter'] = tr['datetime'].apply(lambda dt: int( dt.hour * 4 + dt.minute / 15)+1 )
     del tr['datetime']
@@ -87,7 +90,7 @@ def make_eval(val):
     user_quarter_prob = get_user_quarter_prob(val, 1.0)
 
     # res = pd.DataFrame()
-    # 这里假设时段和起点相互独立，则有全概率公式
+    # 这里假设时段和起点相互独立
     df1 = pd.merge(val[['orderid', 'userid', 'time_range']], user_hour_prob, on=('userid', 'time_range'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
     df2 = pd.merge(val[['orderid', 'userid', 'geohashed_start_loc']], user_start_prob, on=('userid', 'geohashed_start_loc'))[['orderid', 'geohashed_end_loc', 'prob']]
@@ -96,15 +99,15 @@ def make_eval(val):
     df4 = pd.merge(val[['orderid', 'userid', 'quarter']], user_quarter_prob, on=('userid', 'quarter'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
 
-    res = pd.merge( df1,df2,on=('orderid','geohashed_end_loc'),how='outer' ).fillna(0.001)
+    res = pd.merge( df1,df2,on=('orderid','geohashed_end_loc'),how='left' ).fillna(0.001) #保证p(end|hour)*p(end|start)大于只在end|start中出现的概率，忽略了他们的差异
     res['prob'] = res['prob_x']*res['prob_y']
     del res['prob_x']
     del res['prob_y']
-    res = pd.merge( res,df3,on=('orderid','geohashed_end_loc'),how='outer' ).fillna(0.001)
+    res = pd.merge( res,df3,on=('orderid','geohashed_end_loc'),how='left' ).fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
-    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
+    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'),how='left').fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
@@ -143,15 +146,15 @@ def make_sub():
     df4 = pd.merge(te[['orderid', 'userid', 'quarter']], user_quarter_prob, on=('userid', 'quarter'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
 
-    res = pd.merge(df1, df2, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
+    res = pd.merge(df1, df2, on=('orderid', 'geohashed_end_loc'), how='left').fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
-    res = pd.merge(res, df3, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
+    res = pd.merge(res, df3, on=('orderid', 'geohashed_end_loc'), how='left').fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
-    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'), how='outer').fillna(0.001)
+    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'), how='left').fillna(0.001)
     res['prob'] = res['prob_x'] * res['prob_y']
     del res['prob_x']
     del res['prob_y']
@@ -167,7 +170,7 @@ def make_sub():
     res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('wx4f9mu')
     res = pd.merge(res, n3, on=('orderid'), how='left').fillna('wx4e5sw')
     res = res[['orderid', 'pred1', 'pred2', 'pred3']]
-    print(len(res)) #319980
+    print(len(res)) #891517
 
     r = pd.read_csv('../res/syp_userid_loc.csv', names=['orderid', 'pred1', 'pred2', 'pred3'])
     a = pd.DataFrame()
