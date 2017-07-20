@@ -179,7 +179,7 @@ def make_sub():
     r = pd.merge(r, a, on='orderid')
     res = res.append(r[['orderid', 'pred1', 'pred2', 'pred3']]).drop_duplicates('orderid')
     res.to_csv('../res/res_user.csv', header=None, index=None) #0.2407
-make_sub()
+# make_sub()
 
 # if __name__ == "__main__":
 #     d = pd.read_csv('data/data.csv')
