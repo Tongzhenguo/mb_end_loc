@@ -1,5 +1,9 @@
 # coding=utf-8
+import math
+import numpy as np
 import pandas as pd
+from scipy.stats import vonmises
+import scipy.special as sc
 import matplotlib.pyplot as plt
 tr = pd.read_csv('../data/train.csv')
 te = pd.read_csv('../data/test.csv')
@@ -59,6 +63,72 @@ def time_desc():
     b = b[['weekday', 'hour', 'quarter','prob']]
     b.to_csv('../data/time_end_desc.csv')
 
+def hour_desc():
+    d = pd.read_csv('../data/data.csv')
+    def fn( x ):
+        a = list(x)
+        a.sort()
+        a = map(str,a)
+        return '/'.join(a)
+    dd = d[['userid','geohashed_end_loc','hour']].groupby(['userid','geohashed_end_loc'])['hour'].apply(fn).reset_index()
+    print dd.head()
+    pd.to_pickle(dd,'../data/hour_desc.pkl')
+    return dd
+# hour_desc()
+# d = pd.read_csv('../data/data.csv')
+# df = d[(d.userid==957398) & (d.geohashed_end_loc=='wx4gp87')].sort_values('hour')[['hour']].sort_values('hour')
+# x = df['hour'].values
+# n, bins, patches = plt.hist(x, df['hour'].unique().shape[0], facecolor='g', alpha=0.75)
+#
+# plt.xlabel('Smarts')
+# plt.ylabel('Probability')
+# # 添加标题
+# plt.title('Histogram of hour')
+# # 添加文字
+# plt.axis([0, 23, 0, 20])
+# plt.grid(True)
+# plt.show()
 
-if __name__ == "__main__":
-    pass
+def cal_mu( xs ):
+    """
+    :param xs: ndarray
+    :return:
+    """
+    return round(np.mean( xs ),1)
+def cal_sigma( xs,u ):
+    """
+    :param xs:
+    :return:
+    """
+    if not u:
+        u = cal_mu( xs )
+    def G( xs,u ):
+        return np.sum( (-abs(abs( xs - u ) - 12)+12) ** 2 )
+    return float(1) / len(xs) * G( xs,u )
+def get_hour_prob( hours,u,sigma ):
+    # print( "".format(hours=hours) )
+    from vonmiseskde import VonMisesKDE
+    kappa = 25
+    kde = VonMisesKDE(samples, weights=weights, kappa=kappa)
+    print( "均值={u},sigma={sigma}".format(u=u,sigma=sigma) )
+    return vonmises.fit(hours,1.0/sigma , loc=u, scale=math.sqrt(sigma) )
+print get_hour_prob([9,],10.5,2.0)
+print get_hour_prob([9,],19.3,0.96)
+print get_hour_prob([9,],19.5,0.25)
+print get_hour_prob([9,],19,0.33)
+print get_hour_prob([9,],22.5,0.25)
+# d = pd.read_csv('../data/data.csv')
+# df = d[(d.userid==957398) & (d.geohashed_end_loc=='wx4gp87')]
+# u = cal_mu( df['hour'].values )
+# k = cal_sigma( df['hour'].values,u )
+# print( df['hour'].values )
+# print( get_hour_prob( df['hour'].values,k,u,24 ) )
+# print( pd.read_csv('../data/hour_rate.csv') )
+
+# if __name__ == "__main__":
+#     import matplotlib as mpl
+#     import matplotlib.pyplot as plt
+#
+#     df = pd.read_csv('../data/hour_rate.csv')
+#     df.plot()
+#     plt.show()
