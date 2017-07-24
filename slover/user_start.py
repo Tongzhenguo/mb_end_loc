@@ -12,7 +12,7 @@ import pickle
 """
     基于推荐的算法：
     如果用户在训练集出现过，预测的概率公式是：
-    prob(u,new_start) = prob(u,old_start)*sim(new_start,old_start)
+    prob(u,new_start) = prob(u,old_start)*sim(new_start,old_start|u)
     其中相似度算法一种方法是--共现矩阵算法
 """
 def get_user_start_prob( df2,a ):
@@ -81,7 +81,7 @@ def get_concur_sim( train ):
 def get_sim_start( te ):
     #找到一个用户测试集新地点对应的最相似/最近的订单起点
     #prob(u,new_start) = prob(u,old_start)*sim(new_start,old_start)
-    tr = pd.read_csv('../data/train.csv')[['userid','geohashed_start_loc']].drop_duplicates(['userid','geohashed_start_loc'])
+    tr = pd.read_csv('../data/train.csv')[['geohashed_start_loc','userid']].drop_duplicates(['geohashed_start_loc','userid'])
     te = pd.read_csv('../data/test.csv')[['orderid','userid','geohashed_start_loc']]
     te['label'] = 1
     sim_mat = get_concur_sim( tr )
@@ -89,18 +89,25 @@ def get_sim_start( te ):
     sim_mat1['t'] = sim_mat1['item1']
     sim_mat1['item1'] = sim_mat1['item2']
     sim_mat1['item2'] = sim_mat1['t']
+    del sim_mat['t']
     sim_mat = sim_mat.append( sim_mat1 )
     del sim_mat1
-    del sim_mat['t']
     gc.collect()
-    ss = pd.merge( tr,sim_mat,left_on='geohashed_start_loc',right_on='item1' )
-    del ss['item1']
-    gc.collect()
+    pd.merge( tr, )
+    sim_mat = sim_mat.sort_values('sim',ascending=False).drop_duplicates('item1')
+    df = pd.merge( tr,te,on=('geohashed_start_loc','userid'),how='left' ).fillna(0)
+    df = pd.merge( df[df.label == 0],sim_mat,right_on='item1',left_on='geohashed_start_loc' )
+    del df['label']
+    del df['item1']
 
-    ss = ss.sort_values(['userid','geohashed_start_loc','sim'],ascending=False).drop_duplicates(['userid','geohashed_start_loc'])
-    df = pd.merge(ss, te, on=('userid'))
-    df = pd.merge(df, te, on=('geohashed_start_loc'),how='right' ).fillna(0)
-    df = df[df.label == 0].sort_values(['orderid','sim'],ascending=False).drop_duplicates('orderid')
+    # ss = pd.merge( tr,sim_mat,left_on='geohashed_start_loc',right_on='item1' )
+    # del ss['item1']
+    # gc.collect()
+    #
+    # ss = ss.sort_values(['userid','geohashed_start_loc','sim'],ascending=False).drop_duplicates(['userid','geohashed_start_loc'])
+    # df = pd.merge(tr[['userid','geohashed_start_loc']].drop_duplicates(['userid','geohashed_start_loc']), te, on=('userid'))
+    # df = pd.merge(sim_mat, te, left_on='item1',right_on='geohashed_start_loc',how='right' ).fillna(0)
+    # df = df[df.label == 0].sort_values(['orderid','sim'],ascending=False).drop_duplicates('orderid')
 
 
 
@@ -149,7 +156,7 @@ def make_sub():
     df = pd.merge( tr,te,on=('userid'),how='right' ).fillna(0)
     pd.merge( df[df.label==0],sim_mat,left_on='item1',right_on='geohashed_start_loc' )[['orderid','item2','sim']]
     pd.merge(df[df.label == 0], sim_mat, left_on='item2', right_on='geohashed_start_loc')[['orderid', 'item1', 'sim']]
-make_sub()
+# make_sub()
 
 # if __name__ == "__main__":
 #     d = pd.read_csv('data/data.csv')

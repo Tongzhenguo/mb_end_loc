@@ -1,5 +1,10 @@
 # coding=utf-8
+import gc
 import pandas as pd
+
+'''
+    新增用户终点起点反转的概率
+'''
 
 # dig time metadata
 def trans_time( tr ):
@@ -24,7 +29,7 @@ def trans_time( tr ):
     del df2['starttime']
     return df2
 
-def get_user_quarter_prob( df2,a ):
+def get_user_quarter_prob( df2,a,te ):
     """
     :param df2:
     :param a:权重控制参数,0到1之间的浮点数
@@ -37,10 +42,27 @@ def get_user_quarter_prob( df2,a ):
     df = pd.merge( df2_hour_end,df2_hour,on=('userid', 'quarter') )
     df['prob'] = a * df['orderid_x'] / df['orderid_y']
     df = df[['userid', 'quarter', 'geohashed_end_loc', 'prob']]
-    return df
+
+    df1 = pd.merge(te[['orderid', 'userid', 'quarter']], df, on=('userid', 'quarter'))[
+        ['orderid', 'geohashed_end_loc', 'prob']]
+    del df
+    gc.collect()
+    groupby = df1.sort_values('prob', ascending=False).drop_duplicates(['orderid', 'geohashed_end_loc']).groupby(
+        'orderid', as_index=False)
+    n1 = groupby.nth(0)
+    n1.columns = ['orderid', 'pred1', 'prob1']
+    n2 = groupby.nth(1)
+    n2.columns = ['orderid', 'pred2', 'prob2']
+    n3 = groupby.nth(2)
+    n3.columns = ['orderid', 'pred3', 'prob3']
+    res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('-1')
+    res = pd.merge(res, n3, on=('orderid'), how='left').fillna('-1')
+    del res['prob2']
+    del res['prob3']
+    return res
 
 
-def get_user_weekday_prob( df2,a ):
+def get_user_weekday_prob( df2,a,te ):
     """
     :param df2:
     :param a:权重控制参数,0到1之间的浮点数
@@ -53,9 +75,27 @@ def get_user_weekday_prob( df2,a ):
     df = pd.merge( df2_hour_end,df2_hour,on=('userid', 'weekday') )
     df['prob'] = a * df['orderid_x'] / df['orderid_y']
     df = df[['userid', 'weekday', 'geohashed_end_loc', 'prob']]
-    return df
 
-def get_user_hour_prob( df2,a ):
+    df1 = pd.merge(te[['orderid', 'userid', 'weekday']], df, on=('userid', 'weekday'))[
+        ['orderid', 'geohashed_end_loc', 'prob']]
+    del df
+    gc.collect()
+    groupby = df1.sort_values('prob', ascending=False).drop_duplicates(['orderid', 'geohashed_end_loc']).groupby(
+        'orderid', as_index=False)
+    n1 = groupby.nth(0)
+    n1.columns = ['orderid', 'pred1', 'prob1']
+    n2 = groupby.nth(1)
+    n2.columns = ['orderid', 'pred2', 'prob2']
+    n3 = groupby.nth(2)
+    n3.columns = ['orderid', 'pred3', 'prob3']
+    res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('-1')
+    res = pd.merge(res, n3, on=('orderid'), how='left').fillna('-1')
+    del res['prob2']
+    del res['prob3']
+    return res
+
+
+def get_user_hour_prob( df2,a,te ):
     """
     :param df2:
     :param a:权重控制参数,0到1之间的浮点数
@@ -68,9 +108,26 @@ def get_user_hour_prob( df2,a ):
     df = pd.merge( df2_hour_end,df2_hour,on=('userid', 'time_range') )
     df['prob'] = a * df['orderid_x'] / df['orderid_y']
     df = df[['userid', 'time_range', 'geohashed_end_loc', 'prob']]
-    return df
 
-def get_user_start_prob( df2,a ):
+    df1 = pd.merge(te[['orderid', 'userid', 'time_range']], df, on=('userid', 'time_range'))[
+        ['orderid', 'geohashed_end_loc', 'prob']]
+    del df
+    gc.collect()
+    groupby = df1.sort_values('prob', ascending=False).drop_duplicates(['orderid', 'geohashed_end_loc']).groupby(
+        'orderid', as_index=False)
+    n1 = groupby.nth(0)
+    n1.columns = ['orderid', 'pred1', 'prob1']
+    n2 = groupby.nth(1)
+    n2.columns = ['orderid', 'pred2', 'prob2']
+    n3 = groupby.nth(2)
+    n3.columns = ['orderid', 'pred3', 'prob3']
+    res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('-1')
+    res = pd.merge(res, n3, on=('orderid'), how='left').fillna('-1')
+    del res['prob2']
+    del res['prob3']
+    return res
+
+def get_user_start_prob( df2,a,te ):
     """
     :param df2:
     :param a:权重控制参数,0到1之间的浮点数
@@ -81,48 +138,87 @@ def get_user_start_prob( df2,a ):
     df = pd.merge( df2_start_end,df2_start,on=('userid','geohashed_start_loc') )
     df['prob'] = a*df['orderid_x'] / df['orderid_y']
     df = df[['userid','geohashed_start_loc','geohashed_end_loc','prob']]
-    return df
+    df2 = df
+    df2['t'] = df2['geohashed_start_loc']
+    df2['geohashed_start_loc'] = df2['geohashed_end_loc']
+    df2['geohashed_end_loc'] = df2['t']
+    del df2['t']
+    df = df.append( df2 )
+    del df2
 
-def make_eval(val):
-    user_hour_prob = get_user_hour_prob( val,1.0 )
-    user_start_prob = get_user_start_prob( val,1.0 )
-    user_weekday_prob = get_user_weekday_prob(val,1.0)
-    user_quarter_prob = get_user_quarter_prob(val, 1.0)
-
-    # res = pd.DataFrame()
-    # 这里假设时段和起点相互独立
-    df1 = pd.merge(val[['orderid', 'userid', 'time_range']], user_hour_prob, on=('userid', 'time_range'))[
+    df1 = pd.merge(te[['orderid', 'userid', 'geohashed_start_loc']], df, on=('userid', 'geohashed_start_loc'))[
         ['orderid', 'geohashed_end_loc', 'prob']]
-    df2 = pd.merge(val[['orderid', 'userid', 'geohashed_start_loc']], user_start_prob, on=('userid', 'geohashed_start_loc'))[['orderid', 'geohashed_end_loc', 'prob']]
-    df3 = pd.merge(val[['orderid', 'userid', 'weekday']], user_weekday_prob, on=('userid', 'weekday'))[
-        ['orderid', 'geohashed_end_loc', 'prob']]
-    df4 = pd.merge(val[['orderid', 'userid', 'quarter']], user_quarter_prob, on=('userid', 'quarter'))[
-        ['orderid', 'geohashed_end_loc', 'prob']]
-
-    res = pd.merge( df1,df2,on=('orderid','geohashed_end_loc'),how='left' ).fillna(0.001) #保证p(end|hour)*p(end|start)大于只在end|start中出现的概率，忽略了他们的差异
-    res['prob'] = res['prob_x']*res['prob_y']
-    del res['prob_x']
-    del res['prob_y']
-    res = pd.merge( res,df3,on=('orderid','geohashed_end_loc'),how='left' ).fillna(0.001)
-    res['prob'] = res['prob_x'] * res['prob_y']
-    del res['prob_x']
-    del res['prob_y']
-    res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'),how='left').fillna(0.001)
-    res['prob'] = res['prob_x'] * res['prob_y']
-    del res['prob_x']
-    del res['prob_y']
-
-    groupby = res.sort_values('prob', ascending=False).drop_duplicates( ['orderid','geohashed_end_loc'] ).groupby('orderid', as_index=False)
+    del df
+    gc.collect()
+    groupby = df1.sort_values('prob', ascending=False).drop_duplicates(['orderid', 'geohashed_end_loc']).groupby(
+        'orderid', as_index=False)
     n1 = groupby.nth(0)
-    n1.columns = ['orderid','pred1','prob1']
+    n1.columns = ['orderid', 'pred1', 'prob1']
     n2 = groupby.nth(1)
-    n2.columns = ['orderid','pred2','prob2']
+    n2.columns = ['orderid', 'pred2', 'prob2']
     n3 = groupby.nth(2)
-    n3.columns = ['orderid','pred3','prob3']
+    n3.columns = ['orderid', 'pred3', 'prob3']
     res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('-1')
     res = pd.merge(res, n3, on=('orderid'), how='left').fillna('-1')
+    del res['prob2']
+    del res['prob3']
+    return res
+
+
+def make_eval(val):
+    user_hour_prob = get_user_hour_prob( val,1.0,val )
+    user_start_prob = get_user_start_prob( val,1.0,val )
+    user_weekday_prob = get_user_weekday_prob(val,1.0,val)
+    user_quarter_prob = get_user_quarter_prob(val, 1.0,val)
+
+    res = pd.DataFrame()
+    res = res.append( user_hour_prob )
+    res = res.append(user_start_prob)
+    res = res.append(user_weekday_prob)
+    res = res.append(user_quarter_prob)
+
+    res.sort_values('prob1',ascending=False).drop_duplicates('orderid')
+    res.to_pickle('../data/a.csv')
+
+    # # res = pd.DataFrame()
+    # # 这里假设时段和起点相互独立
+    # df1 = pd.merge(val[['orderid', 'userid', 'time_range']], user_hour_prob, on=('userid', 'time_range'))[
+    #     ['orderid', 'geohashed_end_loc', 'prob']]
+    # df2 = pd.merge(val[['orderid', 'userid', 'geohashed_start_loc']], user_start_prob, on=('userid', 'geohashed_start_loc'))[['orderid', 'geohashed_end_loc', 'prob']]
+    # df3 = pd.merge(val[['orderid', 'userid', 'weekday']], user_weekday_prob, on=('userid', 'weekday'))[
+    #     ['orderid', 'geohashed_end_loc', 'prob']]
+    # df4 = pd.merge(val[['orderid', 'userid', 'quarter']], user_quarter_prob, on=('userid', 'quarter'))[
+    #     ['orderid', 'geohashed_end_loc', 'prob']]
+
+
+
+    # res = pd.merge( df1,df2,on=('orderid','geohashed_end_loc'),how='left' ).fillna(0.001) #保证p(end|hour)*p(end|start)大于只在end|start中出现的概率，忽略了他们的差异
+    # res['prob'] = res['prob_x']*res['prob_y']
+    # del res['prob_x']
+    # del res['prob_y']
+    # res = pd.merge( res,df3,on=('orderid','geohashed_end_loc'),how='left' ).fillna(0.001)
+    # res['prob'] = res['prob_x'] * res['prob_y']
+    # del res['prob_x']
+    # del res['prob_y']
+    # res = pd.merge(res, df4, on=('orderid', 'geohashed_end_loc'),how='left').fillna(0.001)
+    # res['prob'] = res['prob_x'] * res['prob_y']
+    # del res['prob_x']
+    # del res['prob_y']
+
+    # groupby = res.sort_values('prob', ascending=False).drop_duplicates( ['orderid','geohashed_end_loc'] ).groupby('orderid', as_index=False)
+    # n1 = groupby.nth(0)
+    # n1.columns = ['orderid','pred1','prob1']
+    # n2 = groupby.nth(1)
+    # n2.columns = ['orderid','pred2','prob2']
+    # n3 = groupby.nth(2)
+    # n3.columns = ['orderid','pred3','prob3']
+    # res = pd.merge(n1, n2, on=('orderid'), how='left').fillna('-1')
+    # res = pd.merge(res, n3, on=('orderid'), how='left').fillna('-1')
     # res = res[['orderid', 'pred1', 'pred2', 'pred3']]
     return res
+tr = pd.read_csv('../data/train.csv')
+df2 = trans_time(tr)
+make_eval( df2 )
 
 def make_sub():
     tr = pd.read_csv('../data/train.csv')
